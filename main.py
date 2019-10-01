@@ -6,13 +6,13 @@ import torch
 torch.cuda.current_device()
 torch.autograd.set_detect_anomaly(True)
 
-from master_thesis.utils import *
+from utils import *
 
-from master_thesis.train import train
-from master_thesis.eval import eval
-from master_thesis.baseline import *
+from train import train
+from eval import eval
+from baseline import *
 
-MASTER_ROOT_DIR = "master_thesis"
+MASTER_ROOT_DIR = ""
 trainFile = open("TRAIN_PROGRESS.txt", 'w+')
 
 #load hyperparameters
