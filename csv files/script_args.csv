@@ -1,0 +1,16 @@
+ROOT_DIR,data,string
+TRAIN_DIR_MASKED,masked_images_training,string
+TRAIN_DIR_UNMASKED,unmasked_images_training,string
+fileName,predictions_baseline,string
+jsonfileName,bdd100k_tracking_cvpr2019_val.json,string
+LOAD_MODEL,False,bool
+DATA_AMOUNT_TRAIN_START,0,int
+DATA_AMOUNT_TRAIN_END,50,int
+DATA_AMOUNT_EVAL_START,0,int
+DATA_AMOUNT_EVAL_END,50,int
+TRAIN,True,bool
+EVAL,False,bool
+BASELINE,AVG,string
+SHOW_PREDICTIONS,False,bool
+SHOW_LOSSES,False,bool
+prediction_dir,predictions.txt
