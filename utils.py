@@ -97,19 +97,6 @@ def convert_to_dict(filepath):
     f.close()
     return your_dict
 
-def create_model_dict(hype, device):
-    dict_of_params = {}
-    dict_of_params['MASKED CONV MODEL'] = (hype['masked_output_ftrs'], hype['masked_learning_rate'])
-    dict_of_params['UNMASKED CONV MODEL'] = (hype['unmasked_output_features'], hype['unmasked_learning_rate'])
-    dict_of_params['ENCODER MODEL'] = (hype['encoder_hidden_size'], hype['encoder_n_layers'],
-                                       hype['encoder_dropout'], hype['encoder_learning_rate'])
-    dict_of_params['DECODER MODEL'] = (hype['decoder_hidden_size'], hype['decoder_n_layers'],
-                                       hype['decoder_dropout'], hype['decoder_learning_rate'])
-    dict_of_params['CVAE MODEL'] = (hype['cvae_hidden_size'], hype['cvae_latent_size'], hype['cvae_learning_rate'])
-    dict_of_params['MULTI HYPOS'] = (hype['num_of_hypos'], hype['multi_fc_layer_neurons'], hype['multi_hypo_learning_rate'])
-    dict_of_params['MISC'] = (device, hype['attn_model'])
-    return dict_of_params
-
 def create_data(index, trainFile, DATASET, indices, script_args, data, batch_size, MASTER_ROOT_DIR):
     start_index = index * 100
     end_index = start_index + 100
@@ -120,7 +107,7 @@ def create_data(index, trainFile, DATASET, indices, script_args, data, batch_siz
     masked_img_array = []
     masked_img_flipped_array = []
     unmasked_img_array = []
-    loader = DataLoader(dataset=_DATASET, batch_size=batch_size, shuffle=False, num_workers=0)
+    loader = DataLoader(dataset=_DATASET, batch_size=batch_size, shuffle=False, num_workers=script_args['num_workers'])
 
     for i, (image_batch, image_batch_flipped) in enumerate(loader):
         masked_img_array.append(image_batch)
@@ -144,35 +131,37 @@ def create_data(index, trainFile, DATASET, indices, script_args, data, batch_siz
 
     return all_agents_unique, list_of_dicts, masked_img_array, masked_img_flipped_array, unmasked_img_array
 
-def feature_extraction(dict_of_models, device, hype, encoder_batch_size, input):
+def feature_extraction(dict_of_models, device, hype, input):
     mask_conv_output = dict_of_models['MASKED CONV MODEL'](input[0].to(device))
     mask_conv_output = torch.cat((mask_conv_output, input[1]), 1)
-    other_agent_output = dict_of_models['UNMASKED CONV MODEL'](input[4].to(device))
-    mask_conv_output = torch.cat((mask_conv_output, other_agent_output), 1)
-    final_mask_conv_features = convertToEncoderInput(mask_conv_output, hype['input_seq_len'], encoder_batch_size)
-    final_target_features = convertToEncoderInput(input[3], hype['target_seq_len'], encoder_batch_size)
+    agent_conv_output = dict_of_models['UNMASKED CONV MODEL'](input[4].to(device))
+    final_mask_conv_output = torch.cat((mask_conv_output, agent_conv_output), 1)
+    final_mask_conv_features = convertToEncoderInput(final_mask_conv_output, hype['input_seq_len'], hype['batch_size'])
+    final_target_features = convertToEncoderInput(input[3], hype['target_seq_len'], hype['batch_size'])
     return final_mask_conv_features, final_target_features
 
 def generate_multiple_hypos(dict_of_models, hype, device, decoder_input, decoder_hidden,
-                            encoder_outputs, final_target_features, total_best_loss, final_loss, t):
+                            multi_agent_output, full_img_encoder_outputs, final_target_features, total_best_loss,
+                            final_loss, time_step):
     decoder_outputs, decoder_hidden = dict_of_models['DECODER MODEL'](decoder_input.to(device),
                                                                       decoder_hidden.to(device),
-                                                                      encoder_outputs.to(device))
+                                                                      multi_agent_output.to(device),
+                                                                      full_img_encoder_outputs.to(device))
 
     decoder_hidden_combined = torch.zeros(decoder_hidden[0, :, ].size()).to(device)
     for n in range(hype['decoder_n_layers']):
         decoder_hidden_combined += decoder_hidden[n, :, ]
     cvae_input = torch.cat((decoder_outputs, decoder_hidden_combined), 1)
-    cvae_output, _, _ = dict_of_models['CVAE MODEL'](cvae_input.to(device))
+    cvae_output, _, _ = dict_of_models['MULTI HYPO CVAE MODEL'](cvae_input.to(device))
 
     hypos = []
     for multi_hypo_model in dict_of_models['MULTI HYPO MODELS']:
         hypos.append(multi_hypo_model(cvae_output.to(device)))
-    hypos.sort(key=lambda hypo: dict_of_models['LOSS FUNC'](final_target_features[t, :, ],
+    hypos.sort(key=lambda hypo: dict_of_models['LOSS FUNC'](final_target_features[time_step, :, ],
                                                             hypo + decoder_input.squeeze(0)).to(device))
     all_losses = []
     for hypo in hypos:
-        temp_loss = dict_of_models['LOSS FUNC'](final_target_features[t, :, ], hypo + decoder_input.squeeze(0))
+        temp_loss = dict_of_models['LOSS FUNC'](final_target_features[time_step, :, ], hypo + decoder_input.squeeze(0))
         if random.random() < hype['cvae_output_dropout']:
             temp_loss = 0
         all_losses.append(temp_loss)

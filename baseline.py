@@ -32,7 +32,7 @@ def use_baseline(script_args, hype, MASTER_ROOT_DIR):
                 if current_agent_counter == total_seq_len:
                     print("NOW WORKING ON AGENT " + str(current_agent))
 
-                    if script_args['USE_BASELINE_AVG']:
+                    if script_args['BASELINE'] in ['AVG']:
                         avg_bbox_diff = np.zeros(4)
                         agent_bbox = list_of_dicts[start_img][current_agent]
                         for dict in list_of_dicts[start_img:start_img + script_args['input_seq_len']]:
@@ -43,7 +43,7 @@ def use_baseline(script_args, hype, MASTER_ROOT_DIR):
 
                         for dict in list_of_dicts[start_img:end_img]:
                             dict[str(current_agent) + ' (PREDICTION)'] = prediction
-                    elif script_args['USE_BASELINE_KALMAN']:
+                    elif script_args['BASELINE'] in ['KALMAN']:
                         measurements = []
                         for dict in list_of_dicts[start_img:start_img + script_args['input_seq_len']]:
                             measurements.append(dict[current_agent])

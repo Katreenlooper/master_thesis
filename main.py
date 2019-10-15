@@ -1,6 +1,7 @@
 from __future__ import division
 import torchvision.transforms as transforms
 import json
+import sys
 
 import torch
 torch.cuda.current_device()
@@ -13,6 +14,11 @@ from eval import eval
 from baseline import *
 
 MASTER_ROOT_DIR = ""
+if len(sys.argv) > 1:
+    MASTER_ROOT_DIR = sys.argv[1]
+else:
+    MASTER_ROOT_DIR = ""
+
 trainFile = open("TRAIN_PROGRESS.txt", 'w+')
 
 #load hyperparameters
@@ -50,14 +56,14 @@ data = json.load(json_file)
 #Load paths of all saved models
 paths = convert_to_dict(os.path.join(MASTER_ROOT_DIR, "csv files", "models_dict.csv"))
 
-if script_args['TRAIN']:
+if script_args['ACTION'] == "TRAIN":
     train(device, transform, flip_transform, data, MASTER_ROOT_DIR, trainFile, hype, script_args, paths)
-elif script_args['EVAL']:
+elif script_args['ACTION'] == "EVAL":
     eval(MASTER_ROOT_DIR, script_args, hype, paths, transform, data, trainFile)
-elif script_args['BASELINE'] in ['AVG', 'KALMAN']:
+elif script_args['ACTION'] in ['BASELINE_AVG', 'BASELINE_KALMAN']:
     use_baseline(script_args, hype, MASTER_ROOT_DIR)
-elif script_args['SHOW_PREDICTIONS']:
+elif script_args['ACTION'] == "SHOW_PREDICTIONS":
     show_predictions(script_args, data, MASTER_ROOT_DIR, os.path.join(MASTER_ROOT_DIR, script_args['prediction_dir']))
-elif script_args['SHOW_LOSSES']:
+elif script_args['ACTION'] == "SHOW_LOSSES":
     loss_list = open(os.path.join(MASTER_ROOT_DIR, "losses.txt"), "rb")
     display_losses(loss_list, MASTER_ROOT_DIR)

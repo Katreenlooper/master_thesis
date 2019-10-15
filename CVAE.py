@@ -53,17 +53,18 @@ class AutoDecoder(nn.Module):
         return generated_x
 
 class CVAE(nn.Module):
-    def __init__(self, input_dim, hidden_dim, latent_dim):
+    def __init__(self, input_dim, output_dim, hidden_dim, latent_dim):
         '''
         Args:
             input_dim: An integer indicating the size of input.
+            output_dim: An integer indicating the size of output.
             hidden_dim: An integer indicating the size of hidden dimension.
             latent_dim: An integer indicating the latent size.
         '''
         super().__init__()
 
         self.encoder = AutoEncoder(input_dim, hidden_dim, latent_dim)
-        self.decoder = AutoDecoder(latent_dim, hidden_dim, input_dim)
+        self.decoder = AutoDecoder(latent_dim, hidden_dim, output_dim)
 
     def forward(self, x):
         # encode

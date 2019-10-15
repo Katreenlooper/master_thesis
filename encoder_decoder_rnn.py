@@ -16,6 +16,31 @@ class EncoderRNN(nn.Module):
         outputs = outputs[:, :, :self.hidden_size] + outputs[:, :, self.hidden_size:]
         return outputs, hidden
 
+class LuongAttnEncoderRNN(nn.Module):
+    def __init__(self, attn_model, input_size, hidden_size, n_layers=1, dropout=0):
+        super(LuongAttnEncoderRNN, self).__init__()
+        self.n_layers = n_layers
+        self.hidden_size = hidden_size
+        self.gru = nn.GRU(input_size, hidden_size, n_layers,
+                          dropout=(0 if n_layers == 1 else dropout), bidirectional=True)
+
+        self.concat = nn.Linear(hidden_size * 2, hidden_size)
+        self.out = nn.Linear(hidden_size, hidden_size)
+        self.attn = Attn(attn_model, hidden_size)
+
+    def forward(self, input_seq, encoder_outputs, hidden=None):
+        outputs, hidden = self.gru(input_seq, hidden)
+        outputs = outputs[:, :, :self.hidden_size] + outputs[:, :, self.hidden_size:]
+        _outputs = outputs.clone()
+        attn_weights = self.attn(outputs, encoder_outputs)
+        context = attn_weights.bmm(encoder_outputs.transpose(0, 1))
+        context = context.squeeze(1)
+        _outputs = torch.mean(_outputs, 0)
+        concat_input = torch.cat((_outputs, context), 1)
+        concat_output = torch.tanh(self.concat(concat_input))
+        _outputs = self.out(concat_output)
+        return outputs, hidden
+
 class Attn(nn.Module):
     def __init__(self, method, hidden_size):
         super(Attn, self).__init__()
@@ -64,18 +89,21 @@ class LuongAttnDecoderRNN(nn.Module):
         self.dropout = dropout
 
         self.gru = nn.GRU(input_size, hidden_size, n_layers, dropout=(0 if n_layers == 1 else dropout))
-        self.concat = nn.Linear(hidden_size * 2, hidden_size)
+        self.concat = nn.Linear(hidden_size * 3, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
 
         self.attn = Attn(attn_model, hidden_size)
 
-    def forward(self, input_step, last_hidden, encoder_outputs):
+    def forward(self, input_step, last_hidden, encoder_outputs1, encoder_outputs2):
         rnn_output, hidden = self.gru(input_step, last_hidden)
-        attn_weights = self.attn(rnn_output, encoder_outputs)
-        context = attn_weights.bmm(encoder_outputs.transpose(0, 1))
+        attn_weights1 = self.attn(rnn_output, encoder_outputs1)
+        context1 = attn_weights1.bmm(encoder_outputs1.transpose(0, 1))
+        context1 = context1.squeeze(1)
+        attn_weights2 = self.attn(rnn_output, encoder_outputs2)
+        context2 = attn_weights2.bmm(encoder_outputs2.transpose(0, 1))
+        context2 = context2.squeeze(1)
         rnn_output = rnn_output.squeeze(0)
-        context = context.squeeze(1)
-        concat_input = torch.cat((rnn_output, context), 1)
+        concat_input = torch.cat((rnn_output, context1, context2), 1)
         concat_output = torch.tanh(self.concat(concat_input))
         output = self.out(concat_output)
 
